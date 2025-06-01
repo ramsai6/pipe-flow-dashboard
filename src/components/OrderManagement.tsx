@@ -65,7 +65,7 @@ const OrderManagement = () => {
   const [filteredOrders, setFilteredOrders] = useState(mockOrders);
   const [filters, setFilters] = useState({
     vendor: '',
-    status: '',
+    status: 'all',
     dateFrom: '',
     dateTo: ''
   });
@@ -85,7 +85,7 @@ const OrderManagement = () => {
       );
     }
 
-    if (filters.status) {
+    if (filters.status && filters.status !== 'all') {
       filtered = filtered.filter(order => order.status === filters.status);
     }
 
@@ -103,7 +103,7 @@ const OrderManagement = () => {
   const clearFilters = () => {
     setFilters({
       vendor: '',
-      status: '',
+      status: 'all',
       dateFrom: '',
       dateTo: ''
     });
@@ -156,7 +156,7 @@ const OrderManagement = () => {
                   <SelectValue placeholder="All statuses" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All statuses</SelectItem>
+                  <SelectItem value="all">All statuses</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="confirmed">Confirmed</SelectItem>
                   <SelectItem value="shipped">Shipped</SelectItem>
