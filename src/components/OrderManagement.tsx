@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,58 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '../contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-
-// Mock data
-const mockOrders = [
-  {
-    id: 'ORD-001',
-    vendorEmail: 'vendor1@example.com',
-    vendorName: 'ABC Construction',
-    product: 'PVC Pipe 4 inch - Schedule 40',
-    quantity: 50,
-    total: 1275.00,
-    status: 'pending',
-    orderDate: '2024-01-15',
-    deliveryDate: '2024-01-25',
-    address: '123 Construction Ave, City, State 12345'
-  },
-  {
-    id: 'ORD-002',
-    vendorEmail: 'vendor2@example.com',
-    vendorName: 'XYZ Builders',
-    product: 'PVC Pipe 6 inch - Schedule 40',
-    quantity: 25,
-    total: 1068.75,
-    status: 'confirmed',
-    orderDate: '2024-01-14',
-    deliveryDate: '2024-01-24',
-    address: '456 Builder St, City, State 12345'
-  },
-  {
-    id: 'ORD-003',
-    vendorEmail: 'guest@example.com',
-    vendorName: 'John Smith (Guest)',
-    product: 'PVC Fitting - 90° Elbow 4 inch',
-    quantity: 10,
-    total: 89.50,
-    status: 'shipped',
-    orderDate: '2024-01-13',
-    deliveryDate: '2024-01-23',
-    address: '789 Guest Lane, City, State 12345'
-  },
-  {
-    id: 'ORD-004',
-    vendorEmail: 'vendor1@example.com',
-    vendorName: 'ABC Construction',
-    product: 'PVC Coupling 4 inch',
-    quantity: 20,
-    total: 125.00,
-    status: 'delivered',
-    orderDate: '2024-01-12',
-    deliveryDate: '2024-01-22',
-    address: '123 Construction Ave, City, State 12345'
-  }
-];
+import { mockOrders } from '../data/mockOrders';
+import { getStatusColor, filterOrders } from '../utils/orderUtils';
 
 const OrderManagement = () => {
   const { user } = useAuth();
@@ -95,27 +46,7 @@ const OrderManagement = () => {
   };
 
   const applyFilters = () => {
-    let filtered = orders;
-
-    if (filters.vendor) {
-      filtered = filtered.filter(order => 
-        order.vendorName.toLowerCase().includes(filters.vendor.toLowerCase()) ||
-        order.vendorEmail.toLowerCase().includes(filters.vendor.toLowerCase())
-      );
-    }
-
-    if (filters.status && filters.status !== 'all') {
-      filtered = filtered.filter(order => order.status === filters.status);
-    }
-
-    if (filters.dateFrom) {
-      filtered = filtered.filter(order => order.orderDate >= filters.dateFrom);
-    }
-
-    if (filters.dateTo) {
-      filtered = filtered.filter(order => order.orderDate <= filters.dateTo);
-    }
-
+    const filtered = filterOrders(orders, filters);
     setFilteredOrders(filtered);
   };
 
@@ -127,16 +58,6 @@ const OrderManagement = () => {
       dateTo: ''
     });
     setFilteredOrders(orders);
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'confirmed': return 'bg-blue-100 text-blue-800';
-      case 'shipped': return 'bg-purple-100 text-purple-800';
-      case 'delivered': return 'bg-green-100 text-green-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
   };
 
   return (
@@ -221,9 +142,7 @@ const OrderManagement = () => {
                   {user?.role === 'admin' && (
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
                   )}
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Products</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order Date</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delivery Date</th>
@@ -244,13 +163,14 @@ const OrderManagement = () => {
                       </td>
                     )}
                     <td className="px-6 py-4 text-sm text-gray-900">
-                      {order.product}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {order.quantity}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      ${order.total.toFixed(2)}
+                      <div className="space-y-1">
+                        {order.items.map((item, index) => (
+                          <div key={index}>
+                            <div className="font-medium">{item.productName}</div>
+                            <div className="text-gray-500">Qty: {item.quantity}</div>
+                          </div>
+                        ))}
+                      </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {user?.role === 'admin' ? (

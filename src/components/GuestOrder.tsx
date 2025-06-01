@@ -7,25 +7,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
+import { X } from 'lucide-react';
 
 const products = [
-  { id: '1', name: 'PVC Pipe 4 inch - Schedule 40', price: 25.50 },
-  { id: '2', name: 'PVC Pipe 6 inch - Schedule 40', price: 42.75 },
-  { id: '3', name: 'PVC Pipe 8 inch - Schedule 40', price: 68.20 },
-  { id: '4', name: 'PVC Fitting - 90° Elbow 4 inch', price: 8.95 },
-  { id: '5', name: 'PVC Fitting - T-Joint 6 inch', price: 15.40 },
-  { id: '6', name: 'PVC Coupling 4 inch', price: 6.25 },
+  { id: '1', name: 'PVC Pipe 4 inch - Schedule 40' },
+  { id: '2', name: 'PVC Pipe 6 inch - Schedule 40' },
+  { id: '3', name: 'PVC Pipe 8 inch - Schedule 40' },
+  { id: '4', name: 'PVC Fitting - 90° Elbow 4 inch' },
+  { id: '5', name: 'PVC Fitting - T-Joint 6 inch' },
+  { id: '6', name: 'PVC Coupling 4 inch' },
 ];
+
+interface OrderItem {
+  productId: string;
+  quantity: string;
+}
 
 const GuestOrder = () => {
   const [orderData, setOrderData] = useState({
     name: '',
     email: '',
     phone: '',
-    address: '',
-    productId: '',
-    quantity: ''
+    address: ''
   });
+  const [orderItems, setOrderItems] = useState<OrderItem[]>([{ productId: '', quantity: '' }]);
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -36,12 +41,9 @@ const GuestOrder = () => {
       // Simulate API call
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      const selectedProduct = products.find(p => p.id === orderData.productId);
-      const total = selectedProduct ? selectedProduct.price * parseInt(orderData.quantity) : 0;
-      
       toast({
         title: "Order submitted successfully!",
-        description: `Thank you ${orderData.name}! Your order total is $${total.toFixed(2)}. We'll contact you within 24 hours.`,
+        description: `Thank you ${orderData.name}! We'll contact you within 24 hours.`,
       });
       
       // Reset form
@@ -49,10 +51,9 @@ const GuestOrder = () => {
         name: '',
         email: '',
         phone: '',
-        address: '',
-        productId: '',
-        quantity: ''
+        address: ''
       });
+      setOrderItems([{ productId: '', quantity: '' }]);
     } catch (error) {
       toast({
         title: "Error",
@@ -68,10 +69,21 @@ const GuestOrder = () => {
     setOrderData(prev => ({ ...prev, [field]: value }));
   };
 
-  const selectedProduct = products.find(p => p.id === orderData.productId);
-  const estimatedTotal = selectedProduct && orderData.quantity 
-    ? selectedProduct.price * parseInt(orderData.quantity) 
-    : 0;
+  const addProduct = () => {
+    setOrderItems([...orderItems, { productId: '', quantity: '' }]);
+  };
+
+  const removeProduct = (index: number) => {
+    if (orderItems.length > 1) {
+      setOrderItems(orderItems.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateOrderItem = (index: number, field: keyof OrderItem, value: string) => {
+    const updatedItems = [...orderItems];
+    updatedItems[index] = { ...updatedItems[index], [field]: value };
+    setOrderItems(updatedItems);
+  };
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -130,43 +142,65 @@ const GuestOrder = () => {
               />
             </div>
             
-            <div className="space-y-2">
-              <Label htmlFor="product">Product *</Label>
-              <Select value={orderData.productId} onValueChange={(value) => handleChange('productId', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a product" />
-                </SelectTrigger>
-                <SelectContent>
-                  {products.map((product) => (
-                    <SelectItem key={product.id} value={product.id}>
-                      {product.name} - ${product.price}/unit
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="quantity">Quantity *</Label>
-              <Input
-                id="quantity"
-                type="number"
-                min="1"
-                value={orderData.quantity}
-                onChange={(e) => handleChange('quantity', e.target.value)}
-                placeholder="Enter quantity"
-                required
-              />
-            </div>
-            
-            {estimatedTotal > 0 && (
-              <div className="bg-green-50 p-4 rounded-lg">
-                <p className="text-lg font-semibold text-green-900">
-                  Estimated Total: ${estimatedTotal.toFixed(2)}
-                </p>
-                <p className="text-sm text-green-700">Final pricing will be confirmed when we contact you</p>
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <Label>Products *</Label>
+                <Button type="button" onClick={addProduct} variant="outline" size="sm">
+                  Add Product
+                </Button>
               </div>
-            )}
+              
+              {orderItems.map((item, index) => (
+                <div key={index} className="border rounded-lg p-4 space-y-4">
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-medium">Product {index + 1}</h4>
+                    {orderItems.length > 1 && (
+                      <Button
+                        type="button"
+                        onClick={() => removeProduct(index)}
+                        variant="ghost"
+                        size="sm"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Product</Label>
+                      <Select 
+                        value={item.productId} 
+                        onValueChange={(value) => updateOrderItem(index, 'productId', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select a product" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {products.map((product) => (
+                            <SelectItem key={product.id} value={product.id}>
+                              {product.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label>Quantity</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => updateOrderItem(index, 'quantity', e.target.value)}
+                        placeholder="Enter quantity"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
             
             <Button type="submit" className="w-full" disabled={loading}>
               {loading ? 'Submitting Order...' : 'Submit Order'}
