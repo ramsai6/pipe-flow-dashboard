@@ -1,4 +1,3 @@
-
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '../contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 
 // Mock data
 const mockOrders = [
@@ -61,7 +61,8 @@ const mockOrders = [
 
 const OrderManagement = () => {
   const { user } = useAuth();
-  const [orders] = useState(mockOrders);
+  const { toast } = useToast();
+  const [orders, setOrders] = useState(mockOrders);
   const [filteredOrders, setFilteredOrders] = useState(mockOrders);
   const [filters, setFilters] = useState({
     vendor: '',
@@ -74,6 +75,24 @@ const OrderManagement = () => {
   const displayOrders = user?.role === 'admin' 
     ? filteredOrders 
     : filteredOrders.filter(order => order.vendorEmail === user?.email);
+
+  const updateOrderStatus = (orderId: string, newStatus: string) => {
+    const updatedOrders = orders.map(order => 
+      order.id === orderId ? { ...order, status: newStatus } : order
+    );
+    setOrders(updatedOrders);
+    
+    // Also update filtered orders
+    const updatedFilteredOrders = filteredOrders.map(order => 
+      order.id === orderId ? { ...order, status: newStatus } : order
+    );
+    setFilteredOrders(updatedFilteredOrders);
+
+    toast({
+      title: "Status Updated",
+      description: `Order ${orderId} status changed to ${newStatus}`,
+    });
+  };
 
   const applyFilters = () => {
     let filtered = orders;
@@ -234,9 +253,23 @@ const OrderManagement = () => {
                       ${order.total.toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <Badge className={getStatusColor(order.status)}>
-                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                      </Badge>
+                      {user?.role === 'admin' ? (
+                        <Select value={order.status} onValueChange={(value) => updateOrderStatus(order.id, value)}>
+                          <SelectTrigger className="w-32">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="pending">Pending</SelectItem>
+                            <SelectItem value="confirmed">Confirmed</SelectItem>
+                            <SelectItem value="shipped">Shipped</SelectItem>
+                            <SelectItem value="delivered">Delivered</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge className={getStatusColor(order.status)}>
+                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                        </Badge>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {order.orderDate}
