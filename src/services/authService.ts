@@ -2,6 +2,8 @@
 import { apiClient } from './apiClient';
 import { API_ENDPOINTS, API_CONFIG } from '../config/api';
 import { User } from '../contexts/AuthContext';
+import { tokenService } from './tokenService';
+import { validateAndSanitize, loginSchema, signupSchema, sanitizeEmail } from './validationService';
 
 export interface LoginRequest {
   email: string;
@@ -17,6 +19,7 @@ export interface SignupRequest {
 
 export interface AuthResponse {
   token: string;
+  refreshToken?: string;
   user: {
     id: string;
     username: string;
@@ -39,64 +42,137 @@ const mapRole = (backendRole: string): 'vendor' | 'admin' | 'guest' => {
   }
 };
 
+// Rate limiting for login attempts
+const loginAttempts = new Map<string, { count: number; lastAttempt: number }>();
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCKOUT_DURATION = 15 * 60 * 1000; // 15 minutes
+
+const checkRateLimit = (email: string): boolean => {
+  const now = Date.now();
+  const attempts = loginAttempts.get(email);
+  
+  if (!attempts) {
+    return true;
+  }
+  
+  // Reset if lockout period has passed
+  if (now - attempts.lastAttempt > LOCKOUT_DURATION) {
+    loginAttempts.delete(email);
+    return true;
+  }
+  
+  return attempts.count < MAX_LOGIN_ATTEMPTS;
+};
+
+const recordLoginAttempt = (email: string, success: boolean): void => {
+  const now = Date.now();
+  const attempts = loginAttempts.get(email) || { count: 0, lastAttempt: now };
+  
+  if (success) {
+    // Clear attempts on successful login
+    loginAttempts.delete(email);
+  } else {
+    // Increment failed attempts
+    attempts.count += 1;
+    attempts.lastAttempt = now;
+    loginAttempts.set(email, attempts);
+  }
+};
+
 export const authService = {
   async login(credentials: LoginRequest): Promise<User> {
+    // Validate and sanitize input
+    const validatedData = validateAndSanitize(loginSchema, {
+      email: sanitizeEmail(credentials.email),
+      password: credentials.password,
+    });
+    
+    // Check rate limiting
+    if (!checkRateLimit(validatedData.email)) {
+      recordLoginAttempt(validatedData.email, false);
+      throw new Error('Too many login attempts. Please try again in 15 minutes.');
+    }
+
     if (API_CONFIG.IS_MOCK_ENABLED) {
-      // Mock implementation
+      // Mock implementation with secure demo credentials
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      if (credentials.email === 'admin@pvc.com' && credentials.password === 'admin123') {
+      // Only allow demo credentials in development/demo mode
+      const isDemoMode = import.meta.env.VITE_DEMO_MODE === 'true';
+      
+      if (isDemoMode && validatedData.email === 'admin@pvc.com' && validatedData.password === 'AdminDemo123!') {
         const user: User = {
           id: '1',
           email: 'admin@pvc.com',
           name: 'System Administrator',
           role: 'admin'
         };
-        localStorage.setItem('authToken', 'mock-admin-token');
+        const token = tokenService.generateSecureGuestToken().replace('guest_', 'admin_');
+        tokenService.setTokens(token);
+        recordLoginAttempt(validatedData.email, true);
         return user;
-      } else if (credentials.email && credentials.password) {
+      } else if (validatedData.email && validatedData.password.length >= 8) {
         const user: User = {
           id: '2',
-          email: credentials.email,
+          email: validatedData.email,
           name: 'Vendor User',
           role: 'vendor',
           company: 'ABC Construction',
           phone: '+1234567890'
         };
-        localStorage.setItem('authToken', 'mock-vendor-token');
+        const token = tokenService.generateSecureGuestToken().replace('guest_', 'vendor_');
+        tokenService.setTokens(token);
+        recordLoginAttempt(validatedData.email, true);
         return user;
       }
+      
+      recordLoginAttempt(validatedData.email, false);
       throw new Error('Invalid credentials');
     }
 
-    const response = await apiClient.post<AuthResponse>(API_ENDPOINTS.AUTH.SIGNIN, credentials, false);
-    localStorage.setItem('authToken', response.token);
-    
-    return {
-      id: response.user.id,
-      email: response.user.email,
-      name: response.user.username,
-      role: mapRole(response.user.role),
-    };
+    try {
+      const response = await apiClient.post<AuthResponse>(API_ENDPOINTS.AUTH.SIGNIN, validatedData, false);
+      tokenService.setTokens(response.token, response.refreshToken);
+      recordLoginAttempt(validatedData.email, true);
+      
+      return {
+        id: response.user.id,
+        email: response.user.email,
+        name: response.user.username,
+        role: mapRole(response.user.role),
+      };
+    } catch (error) {
+      recordLoginAttempt(validatedData.email, false);
+      throw error;
+    }
   },
 
   async signup(userData: SignupRequest): Promise<User> {
+    // Validate and sanitize input
+    const validatedData = validateAndSanitize(signupSchema, {
+      username: userData.username,
+      email: sanitizeEmail(userData.email),
+      password: userData.password,
+      confirmPassword: userData.confirmPassword,
+    });
+
     if (API_CONFIG.IS_MOCK_ENABLED) {
       // Mock implementation
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       const user: User = {
         id: Math.random().toString(36),
-        email: userData.email,
-        name: userData.username,
+        email: validatedData.email,
+        name: validatedData.username,
         role: 'vendor',
       };
-      localStorage.setItem('authToken', 'mock-new-user-token');
+      const token = tokenService.generateSecureGuestToken().replace('guest_', 'vendor_');
+      tokenService.setTokens(token);
       return user;
     }
 
-    const response = await apiClient.post<AuthResponse>(API_ENDPOINTS.AUTH.SIGNUP, userData, false);
-    localStorage.setItem('authToken', response.token);
+    const response = await apiClient.post<AuthResponse>(API_ENDPOINTS.AUTH.SIGNUP, validatedData, false);
+    tokenService.setTokens(response.token, response.refreshToken);
     
     return {
       id: response.user.id,
@@ -108,11 +184,16 @@ export const authService = {
 
   async getCurrentUser(): Promise<User> {
     if (API_CONFIG.IS_MOCK_ENABLED) {
-      const token = localStorage.getItem('authToken');
+      const token = tokenService.getAccessToken();
       if (!token) throw new Error('No token found');
       
-      // Return mock user based on token
-      if (token === 'mock-admin-token') {
+      // Check if token is expired (for mock tokens, just check format)
+      if (token.startsWith('guest_') && token.length < 20) {
+        throw new Error('Invalid token format');
+      }
+      
+      // Return mock user based on token prefix
+      if (token.startsWith('admin_')) {
         return {
           id: '1',
           email: 'admin@pvc.com',
@@ -120,6 +201,16 @@ export const authService = {
           role: 'admin'
         };
       }
+      
+      if (token.startsWith('guest_')) {
+        return {
+          id: '3',
+          email: 'guest@example.com',
+          name: 'Guest User',
+          role: 'guest'
+        };
+      }
+      
       return {
         id: '2',
         email: 'vendor@example.com',
@@ -140,12 +231,15 @@ export const authService = {
 
   async logout(): Promise<void> {
     if (API_CONFIG.IS_MOCK_ENABLED) {
-      localStorage.removeItem('authToken');
+      tokenService.clearTokens();
       return;
     }
 
-    await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
-    localStorage.removeItem('authToken');
+    try {
+      await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
+    } finally {
+      tokenService.clearTokens();
+    }
   },
 
   loginAsGuest(): User {
@@ -155,7 +249,11 @@ export const authService = {
       name: 'Guest User',
       role: 'guest'
     };
-    localStorage.setItem('authToken', 'guest-token');
+    
+    // Generate secure guest token
+    const guestToken = tokenService.generateSecureGuestToken();
+    tokenService.setTokens(guestToken);
+    
     return user;
   }
 };
