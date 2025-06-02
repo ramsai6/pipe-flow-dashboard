@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -8,6 +7,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 import { X } from 'lucide-react';
+import { productService, Product } from '../services/productService';
+import { orderService } from '../services/orderService';
+
+interface OrderItem {
+  productId: string;
+  quantity: string;
+}
 
 const products = [
   { id: '1', name: 'PVC Pipe 4 inch - Schedule 40' },
@@ -18,11 +24,6 @@ const products = [
   { id: '6', name: 'PVC Coupling 4 inch' },
 ];
 
-interface OrderItem {
-  productId: string;
-  quantity: string;
-}
-
 const GuestOrder = () => {
   const [orderData, setOrderData] = useState({
     name: '',
@@ -32,29 +33,72 @@ const GuestOrder = () => {
   });
   const [orderItems, setOrderItems] = useState<OrderItem[]>([{ productId: '', quantity: '' }]);
   const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const productList = await productService.getProducts();
+        setProducts(productList);
+      } catch (error) {
+        console.error('Failed to load products:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load products. Please refresh the page.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    loadProducts();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const validItems = orderItems.filter(item => item.productId && item.quantity);
       
-      toast({
-        title: "Order submitted successfully!",
-        description: `Thank you ${orderData.name}! We'll contact you within 24 hours.`,
-      });
+      if (validItems.length === 0) {
+        toast({
+          title: "Error",
+          description: "Please add at least one product to your order.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const orderRequest = {
+        name: orderData.name,
+        email: orderData.email,
+        phone: orderData.phone,
+        address: orderData.address,
+        items: validItems.map(item => ({
+          productId: item.productId,
+          quantity: parseInt(item.quantity)
+        }))
+      };
+
+      const result = await orderService.createGuestOrder(orderRequest);
       
-      // Reset form
-      setOrderData({
-        name: '',
-        email: '',
-        phone: '',
-        address: ''
-      });
-      setOrderItems([{ productId: '', quantity: '' }]);
+      if (result.success) {
+        toast({
+          title: "Order submitted successfully!",
+          description: `Thank you ${orderData.name}! Order ID: ${result.orderId}. We'll contact you within 24 hours.`,
+        });
+        
+        // Reset form
+        setOrderData({
+          name: '',
+          email: '',
+          phone: '',
+          address: ''
+        });
+        setOrderItems([{ productId: '', quantity: '' }]);
+      }
     } catch (error) {
+      console.error('Order submission failed:', error);
       toast({
         title: "Error",
         description: "Failed to submit order. Please try again.",

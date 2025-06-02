@@ -1,5 +1,6 @@
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { authService } from '../services/authService';
 
 export type UserRole = 'vendor' | 'admin' | 'guest';
 
@@ -14,9 +15,10 @@ export interface User {
 
 interface AuthContextType {
   user: User | null;
-  login: (email: string, password: string, role: UserRole) => Promise<boolean>;
+  login: (email: string, password: string, role?: UserRole) => Promise<boolean>;
   register: (userData: Omit<User, 'id'> & { password: string }) => Promise<boolean>;
   logout: () => void;
+  loading: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -31,65 +33,75 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const login = async (email: string, password: string, role: UserRole): Promise<boolean> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Mock user data based on role
-    if (role === 'admin' && email === 'admin@pvc.com' && password === 'admin123') {
-      setUser({
-        id: '1',
-        email: 'admin@pvc.com',
-        name: 'System Administrator',
-        role: 'admin'
-      });
+  useEffect(() => {
+    // Check if user is already logged in
+    const checkAuth = async () => {
+      try {
+        const token = localStorage.getItem('authToken');
+        if (token && token !== 'guest-token') {
+          const currentUser = await authService.getCurrentUser();
+          setUser(currentUser);
+        } else if (token === 'guest-token') {
+          setUser(authService.loginAsGuest());
+        }
+      } catch (error) {
+        console.error('Auth check failed:', error);
+        localStorage.removeItem('authToken');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuth();
+  }, []);
+
+  const login = async (email: string, password: string, role: UserRole = 'vendor'): Promise<boolean> => {
+    try {
+      if (role === 'guest') {
+        const guestUser = authService.loginAsGuest();
+        setUser(guestUser);
+        return true;
+      }
+
+      const loggedInUser = await authService.login({ email, password });
+      setUser(loggedInUser);
       return true;
-    } else if (role === 'vendor' && email && password) {
-      setUser({
-        id: '2',
-        email,
-        name: 'Vendor User',
-        role: 'vendor',
-        company: 'ABC Construction',
-        phone: '+1234567890'
-      });
-      return true;
-    } else if (role === 'guest') {
-      setUser({
-        id: '3',
-        email: 'guest@example.com',
-        name: 'Guest User',
-        role: 'guest'
-      });
-      return true;
+    } catch (error) {
+      console.error('Login failed:', error);
+      return false;
     }
-    
-    return false;
   };
 
   const register = async (userData: Omit<User, 'id'> & { password: string }): Promise<boolean> => {
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    setUser({
-      id: Math.random().toString(36),
-      email: userData.email,
-      name: userData.name,
-      role: userData.role,
-      company: userData.company,
-      phone: userData.phone
-    });
-    
-    return true;
+    try {
+      const newUser = await authService.signup({
+        username: userData.name,
+        email: userData.email,
+        password: userData.password,
+        confirmPassword: userData.password,
+      });
+      setUser(newUser);
+      return true;
+    } catch (error) {
+      console.error('Registration failed:', error);
+      return false;
+    }
   };
 
-  const logout = () => {
-    setUser(null);
+  const logout = async () => {
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      setUser(null);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout }}>
+    <AuthContext.Provider value={{ user, login, register, logout, loading }}>
       {children}
     </AuthContext.Provider>
   );

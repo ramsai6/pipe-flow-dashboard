@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,15 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from '@/hooks/use-toast';
 import { useAuth } from '../contexts/AuthContext';
 import { X } from 'lucide-react';
-
-const products = [
-  { id: '1', name: 'PVC Pipe 4 inch - Schedule 40' },
-  { id: '2', name: 'PVC Pipe 6 inch - Schedule 40' },
-  { id: '3', name: 'PVC Pipe 8 inch - Schedule 40' },
-  { id: '4', name: 'PVC Fitting - 90° Elbow 4 inch' },
-  { id: '5', name: 'PVC Fitting - T-Joint 6 inch' },
-  { id: '6', name: 'PVC Coupling 4 inch' },
-];
+import { productService, Product } from '../services/productService';
+import { orderService } from '../services/orderService';
 
 interface OrderItem {
   productId: string;
@@ -34,14 +26,54 @@ const PlaceOrder = () => {
   });
   const [orderItems, setOrderItems] = useState<OrderItem[]>([{ productId: '', quantity: '' }]);
   const [loading, setLoading] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        const productList = await productService.getProducts();
+        setProducts(productList);
+      } catch (error) {
+        console.error('Failed to load products:', error);
+        toast({
+          title: "Error",
+          description: "Failed to load products. Please refresh the page.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    loadProducts();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const validItems = orderItems.filter(item => item.productId && item.quantity);
+      
+      if (validItems.length === 0) {
+        toast({
+          title: "Error",
+          description: "Please add at least one product to your order.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const orderRequest = {
+        items: validItems.map(item => ({
+          productId: item.productId,
+          quantity: parseInt(item.quantity)
+        })),
+        address: orderData.address,
+        deliveryDate: orderData.deliveryDate,
+        notes: orderData.notes,
+        vendorEmail: user?.role === 'admin' ? orderData.vendorEmail : undefined
+      };
+
+      await orderService.createOrder(orderRequest);
       
       toast({
         title: "Order placed successfully!",
@@ -57,6 +89,7 @@ const PlaceOrder = () => {
       });
       setOrderItems([{ productId: '', quantity: '' }]);
     } catch (error) {
+      console.error('Order creation failed:', error);
       toast({
         title: "Error",
         description: "Failed to place order. Please try again.",
