@@ -97,7 +97,8 @@ export const orderService = {
         items: orderData.items.map(item => ({
           productId: item.productId,
           productName: `Product ${item.productId}`,
-          quantity: item.quantity
+          quantity: item.quantity,
+          price: 25.99 // Adding the missing price property
         })),
         status: 'pending',
         orderDate: new Date().toISOString().split('T')[0],
