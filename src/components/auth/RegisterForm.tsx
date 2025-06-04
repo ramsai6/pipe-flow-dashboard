@@ -13,9 +13,7 @@ const RegisterForm = ({ onRegister }: RegisterFormProps) => {
   const [formData, setFormData] = useState({
     email: '',
     password: '',
-    name: '',
-    company: '',
-    phone: ''
+    name: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -26,10 +24,14 @@ const RegisterForm = ({ onRegister }: RegisterFormProps) => {
     setError('');
 
     try {
-      await onRegister({
+      const success = await onRegister({
         ...formData,
         role: 'vendor'
       });
+      
+      if (!success) {
+        setError('Registration failed. Please try again.');
+      }
     } catch (err) {
       setError('Registration failed. Please try again.');
     } finally {
@@ -63,26 +65,6 @@ const RegisterForm = ({ onRegister }: RegisterFormProps) => {
           onChange={(e) => handleChange('email', e.target.value)}
           required
           placeholder="Enter your email"
-        />
-      </div>
-      
-      <div className="space-y-2">
-        <Label htmlFor="company">Company</Label>
-        <Input
-          id="company"
-          value={formData.company}
-          onChange={(e) => handleChange('company', e.target.value)}
-          placeholder="Company name (optional)"
-        />
-      </div>
-      
-      <div className="space-y-2">
-        <Label htmlFor="phone">Phone</Label>
-        <Input
-          id="phone"
-          value={formData.phone}
-          onChange={(e) => handleChange('phone', e.target.value)}
-          placeholder="Phone number (optional)"
         />
       </div>
       

@@ -26,28 +26,21 @@ export const loginSchema = z.object({
     .min(1, 'Email is required')
     .max(254, 'Email too long'),
   password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(128, 'Password too long')
-    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain uppercase, lowercase, and number'),
+    .min(1, 'Password is required')
+    .max(128, 'Password too long'),
 });
 
 export const signupSchema = z.object({
   username: z.string()
-    .min(2, 'Username must be at least 2 characters')
-    .max(50, 'Username too long')
-    .regex(/^[a-zA-Z0-9_-]+$/, 'Username can only contain letters, numbers, underscore, and dash'),
+    .min(1, 'Username is required')
+    .max(50, 'Username too long'),
   email: z.string()
     .email('Invalid email format')
     .min(1, 'Email is required')
     .max(254, 'Email too long'),
   password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(128, 'Password too long')
-    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain uppercase, lowercase, and number'),
-  confirmPassword: z.string(),
-}).refine((data) => data.password === data.confirmPassword, {
-  message: "Passwords don't match",
-  path: ["confirmPassword"],
+    .min(1, 'Password is required')
+    .max(128, 'Password too long'),
 });
 
 export const orderSchema = z.object({
