@@ -20,6 +20,12 @@ export interface AuthResponse {
   token: string;
 }
 
+export interface RegisterResponse {
+  success: boolean;
+  message: string;
+  timestamp: string;
+}
+
 export interface ProfileResponse {
   id: number;
   username: string;
@@ -159,7 +165,6 @@ export const authService = {
       username: userData.username,
       email: sanitizeEmail(userData.email),
       password: userData.password,
-      confirmPassword: userData.password,
     });
 
     if (API_CONFIG.IS_MOCK_ENABLED) {
@@ -177,15 +182,25 @@ export const authService = {
       return user;
     }
 
-    // Register user
-    await apiClient.post(API_ENDPOINTS.AUTH.REGISTER, {
-      username: validatedData.username,
-      email: validatedData.email,
-      password: validatedData.password,
-    }, false);
-    
-    // Login after successful registration
-    return this.login({ email: validatedData.email, password: validatedData.password });
+    try {
+      // Register user
+      const registerResponse = await apiClient.post<RegisterResponse>(API_ENDPOINTS.AUTH.REGISTER, {
+        username: validatedData.username,
+        email: validatedData.email,
+        password: validatedData.password,
+      }, false);
+      
+      // Check if registration was successful
+      if (!registerResponse.success) {
+        throw new Error(registerResponse.message || 'Registration failed');
+      }
+      
+      // Login after successful registration
+      return this.login({ email: validatedData.email, password: validatedData.password });
+    } catch (error) {
+      console.error('Signup error:', error);
+      throw error;
+    }
   },
 
   async getCurrentUser(): Promise<User> {
