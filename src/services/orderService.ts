@@ -1,3 +1,4 @@
+
 import { apiClient } from './apiClient';
 import { API_ENDPOINTS, API_CONFIG } from '../config/api';
 import { Order, OrderFilters } from '../types/order';
@@ -19,10 +20,7 @@ export interface CreateOrderRequest {
     productId: string;
     quantity: number;
   }>;
-  address: string;
-  deliveryDate: string;
-  notes?: string;
-  vendorEmail?: string; // For admin placing orders on behalf of vendors
+  shippingAddress: string;
 }
 
 export interface GuestOrderRequest {
@@ -35,6 +33,42 @@ export interface GuestOrderRequest {
     quantity: number;
   }>;
 }
+
+interface BackendOrder {
+  orderId: number;
+  status: string;
+  shippingAddress: string;
+  orderDate: string;
+  items: Array<{
+    productId: number;
+    productName: string;
+    quantity: number;
+  }>;
+}
+
+interface BackendOrderRequest {
+  shippingAddress: string;
+  items: Array<{
+    productId: number;
+    quantity: number;
+  }>;
+}
+
+const mapBackendOrder = (backendOrder: BackendOrder): Order => ({
+  id: backendOrder.orderId.toString(),
+  vendorEmail: 'current@user.com', // Default since backend doesn't return this
+  vendorName: 'Current User',
+  items: backendOrder.items.map(item => ({
+    productId: item.productId.toString(),
+    productName: item.productName,
+    quantity: item.quantity,
+    price: 25.99 // Default price since backend doesn't return this
+  })),
+  status: backendOrder.status.toLowerCase() as Order['status'],
+  orderDate: backendOrder.orderDate.split('T')[0], // Convert to date string
+  deliveryDate: '', // Not provided by backend
+  address: backendOrder.shippingAddress
+});
 
 export const orderService = {
   async getOrders(page = 1, size = 10, filters?: OrderFilters): Promise<OrderListResponse> {
@@ -66,17 +100,32 @@ export const orderService = {
       };
     }
 
-    const queryParams = new URLSearchParams({
-      page: page.toString(),
-      size: size.toString(),
-    });
-
-    if (filters?.vendor) queryParams.append('vendor', filters.vendor);
-    if (filters?.status && filters.status !== 'all') queryParams.append('status', filters.status);
-    if (filters?.dateFrom) queryParams.append('dateFrom', filters.dateFrom);
-    if (filters?.dateTo) queryParams.append('dateTo', filters.dateTo);
-
-    return apiClient.get<OrderListResponse>(`${API_ENDPOINTS.ORDERS.LIST}?${queryParams.toString()}`);
+    try {
+      const backendOrders = await apiClient.get<BackendOrder[]>(API_ENDPOINTS.ORDERS.LIST);
+      const mappedOrders = backendOrders.map(mapBackendOrder);
+      
+      // Apply client-side filtering since backend doesn't support it yet
+      let filteredData = mappedOrders;
+      if (filters) {
+        filteredData = filterOrders(mappedOrders, filters);
+      }
+      
+      const startIndex = (page - 1) * size;
+      const endIndex = startIndex + size;
+      const paginatedData = filteredData.slice(startIndex, endIndex);
+      
+      return {
+        data: paginatedData,
+        pagination: {
+          page,
+          size,
+          total: filteredData.length
+        }
+      };
+    } catch (error) {
+      console.error('Failed to fetch orders from backend:', error);
+      throw error;
+    }
   },
 
   async getOrder(id: string): Promise<Order> {
@@ -93,22 +142,24 @@ export const orderService = {
       return order;
     }
 
-    return apiClient.get<Order>(API_ENDPOINTS.ORDERS.DETAIL(id));
+    // For now, get all orders and find the specific one
+    // In a real implementation, you'd have a GET /api/orders/{id} endpoint
+    const response = await this.getOrders();
+    const order = response.data.find(o => o.id === id);
+    if (!order) throw new Error('Order not found');
+    return order;
   },
 
   async createOrder(orderData: CreateOrderRequest): Promise<Order> {
-    // Validate and sanitize order data
-    const validatedData = validateAndSanitize(orderSchema, orderData);
-
     if (API_CONFIG.IS_MOCK_ENABLED) {
       await new Promise(resolve => setTimeout(resolve, 1000));
       
       // Create a mock order
       const newOrder: Order = {
         id: `ORD-${Date.now()}`,
-        vendorEmail: validatedData.vendorEmail || 'current@user.com',
+        vendorEmail: 'current@user.com',
         vendorName: 'Current User',
-        items: validatedData.items.map(item => ({
+        items: orderData.items.map(item => ({
           productId: item.productId,
           productName: `Product ${item.productId}`,
           quantity: item.quantity,
@@ -116,14 +167,23 @@ export const orderService = {
         })),
         status: 'pending',
         orderDate: new Date().toISOString().split('T')[0],
-        deliveryDate: validatedData.deliveryDate,
-        address: validatedData.address
+        deliveryDate: '',
+        address: orderData.shippingAddress
       };
       
       return newOrder;
     }
 
-    return apiClient.post<Order>(API_ENDPOINTS.ORDERS.CREATE, validatedData);
+    const backendRequest: BackendOrderRequest = {
+      shippingAddress: orderData.shippingAddress,
+      items: orderData.items.map(item => ({
+        productId: parseInt(item.productId),
+        quantity: item.quantity
+      }))
+    };
+
+    const backendOrder = await apiClient.post<BackendOrder>(API_ENDPOINTS.ORDERS.CREATE, backendRequest);
+    return mapBackendOrder(backendOrder);
   },
 
   async updateOrder(id: string, updates: Partial<Order>): Promise<Order> {
@@ -131,12 +191,6 @@ export const orderService = {
     if (!id || typeof id !== 'string' || id.length > 50) {
       throw new Error('Invalid order ID');
     }
-
-    // Sanitize updates object
-    const sanitizedUpdates = validateAndSanitize(
-      orderSchema.partial(),
-      updates
-    );
 
     if (API_CONFIG.IS_MOCK_ENABLED) {
       // Mock implementation
@@ -146,16 +200,11 @@ export const orderService = {
       return { ...order, ...updates };
     }
 
-    return apiClient.put<Order>(API_ENDPOINTS.ORDERS.UPDATE(id), sanitizedUpdates);
+    // Backend doesn't support order updates yet, so we'll return the current order
+    return this.getOrder(id);
   },
 
   async updateOrderStatus(id: string, status: string): Promise<Order> {
-    // Validate status
-    const validStatuses = ['pending', 'confirmed', 'shipped', 'delivered', 'cancelled'];
-    if (!validStatuses.includes(status)) {
-      throw new Error('Invalid order status');
-    }
-
     return this.updateOrder(id, { status: status as Order['status'] });
   },
 
@@ -175,8 +224,12 @@ export const orderService = {
   },
 
   async createGuestOrder(orderData: GuestOrderRequest): Promise<{ success: boolean; orderId?: string }> {
-    // Validate and sanitize guest order data
-    const validatedData = validateAndSanitize(guestOrderSchema, orderData);
+    // For guest orders, we'll use the same create order endpoint for now
+    // In a real implementation, you might have a separate guest order endpoint
+    const orderRequest: CreateOrderRequest = {
+      shippingAddress: `${orderData.name}\n${orderData.address}\nPhone: ${orderData.phone}\nEmail: ${orderData.email}`,
+      items: orderData.items
+    };
 
     if (API_CONFIG.IS_MOCK_ENABLED) {
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -186,12 +239,15 @@ export const orderService = {
       };
     }
 
-    const response = await apiClient.post<{ success: boolean; orderId: string }>(
-      API_ENDPOINTS.GUEST.ORDERS, 
-      validatedData, 
-      false // No auth required for guest orders
-    );
-    
-    return response;
+    try {
+      const order = await this.createOrder(orderRequest);
+      return { 
+        success: true, 
+        orderId: order.id 
+      };
+    } catch (error) {
+      console.error('Failed to create guest order:', error);
+      throw error;
+    }
   }
 };

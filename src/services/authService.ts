@@ -14,22 +14,21 @@ export interface SignupRequest {
   username: string;
   email: string;
   password: string;
-  confirmPassword: string;
 }
 
 export interface AuthResponse {
   token: string;
-  refreshToken?: string;
-  user: {
-    id: string;
-    username: string;
-    email: string;
-    role: string;
-  };
+}
+
+export interface ProfileResponse {
+  id: number;
+  username: string;
+  email: string;
 }
 
 // Role mapping from backend to frontend
-const mapRole = (backendRole: string): 'vendor' | 'admin' | 'guest' => {
+const mapRole = (backendRole?: string): 'vendor' | 'admin' | 'guest' => {
+  if (!backendRole) return 'vendor';
   switch (backendRole.toUpperCase()) {
     case 'ADMIN':
       return 'admin';
@@ -131,15 +130,22 @@ export const authService = {
     }
 
     try {
-      const response = await apiClient.post<AuthResponse>(API_ENDPOINTS.AUTH.SIGNIN, validatedData, false);
-      tokenService.setTokens(response.token, response.refreshToken);
+      const response = await apiClient.post<AuthResponse>(API_ENDPOINTS.AUTH.LOGIN, validatedData, false);
+      
+      // Extract token from response (remove "Bearer " prefix if present)
+      const token = response.token.startsWith('Bearer ') ? response.token.substring(7) : response.token;
+      tokenService.setTokens(token);
+      
+      // Get user profile after successful login
+      const profileResponse = await apiClient.get<ProfileResponse>(API_ENDPOINTS.AUTH.PROFILE);
+      
       recordLoginAttempt(validatedData.email, true);
       
       return {
-        id: response.user.id,
-        email: response.user.email,
-        name: response.user.username,
-        role: mapRole(response.user.role),
+        id: profileResponse.id.toString(),
+        email: profileResponse.email,
+        name: profileResponse.username,
+        role: 'vendor', // Default role for now
       };
     } catch (error) {
       recordLoginAttempt(validatedData.email, false);
@@ -153,7 +159,7 @@ export const authService = {
       username: userData.username,
       email: sanitizeEmail(userData.email),
       password: userData.password,
-      confirmPassword: userData.confirmPassword,
+      confirmPassword: userData.password,
     });
 
     if (API_CONFIG.IS_MOCK_ENABLED) {
@@ -171,15 +177,15 @@ export const authService = {
       return user;
     }
 
-    const response = await apiClient.post<AuthResponse>(API_ENDPOINTS.AUTH.SIGNUP, validatedData, false);
-    tokenService.setTokens(response.token, response.refreshToken);
+    // Register user
+    await apiClient.post(API_ENDPOINTS.AUTH.REGISTER, {
+      username: validatedData.username,
+      email: validatedData.email,
+      password: validatedData.password,
+    }, false);
     
-    return {
-      id: response.user.id,
-      email: response.user.email,
-      name: response.user.username,
-      role: mapRole(response.user.role),
-    };
+    // Login after successful registration
+    return this.login({ email: validatedData.email, password: validatedData.password });
   },
 
   async getCurrentUser(): Promise<User> {
@@ -219,27 +225,18 @@ export const authService = {
       };
     }
 
-    const response = await apiClient.get<{ id: string; username: string; email: string; role: string }>(API_ENDPOINTS.AUTH.ME);
+    const response = await apiClient.get<ProfileResponse>(API_ENDPOINTS.AUTH.PROFILE);
     
     return {
-      id: response.id,
+      id: response.id.toString(),
       email: response.email,
       name: response.username,
-      role: mapRole(response.role),
+      role: 'vendor', // Default role for now
     };
   },
 
   async logout(): Promise<void> {
-    if (API_CONFIG.IS_MOCK_ENABLED) {
-      tokenService.clearTokens();
-      return;
-    }
-
-    try {
-      await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
-    } finally {
-      tokenService.clearTokens();
-    }
+    tokenService.clearTokens();
   },
 
   loginAsGuest(): User {

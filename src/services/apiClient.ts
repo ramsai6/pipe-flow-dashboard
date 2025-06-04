@@ -17,8 +17,10 @@ class ApiClient {
 
     if (includeAuth) {
       const token = tokenService.getAccessToken();
-      if (token) {
-        headers.Authorization = `Bearer ${token}`;
+      if (token && !token.startsWith('guest_')) {
+        // Add Bearer prefix if not already present
+        const authToken = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+        headers.Authorization = authToken;
       }
     }
 
@@ -41,7 +43,22 @@ class ApiClient {
         errorMessage = 'Server error occurred';
       }
       
+      // Try to get error message from response
+      try {
+        const errorData = await response.json();
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        }
+      } catch {
+        // Use default error message if parsing fails
+      }
+      
       throw new Error(errorMessage);
+    }
+
+    // Handle empty responses (like 204 No Content)
+    if (response.status === 204) {
+      return {} as T;
     }
 
     try {
@@ -55,7 +72,7 @@ class ApiClient {
     const response = await fetch(`${this.baseURL}${endpoint}`, {
       method: 'GET',
       headers: this.getHeaders(includeAuth),
-      credentials: 'same-origin', // Include cookies for CSRF protection
+      credentials: 'include', // Include cookies for CSRF protection
     });
 
     return this.handleResponse<T>(response);
@@ -65,7 +82,7 @@ class ApiClient {
     const response = await fetch(`${this.baseURL}${endpoint}`, {
       method: 'POST',
       headers: this.getHeaders(includeAuth),
-      credentials: 'same-origin',
+      credentials: 'include',
       body: data ? JSON.stringify(data) : undefined,
     });
 
@@ -76,7 +93,7 @@ class ApiClient {
     const response = await fetch(`${this.baseURL}${endpoint}`, {
       method: 'PUT',
       headers: this.getHeaders(includeAuth),
-      credentials: 'same-origin',
+      credentials: 'include',
       body: data ? JSON.stringify(data) : undefined,
     });
 
@@ -87,7 +104,7 @@ class ApiClient {
     const response = await fetch(`${this.baseURL}${endpoint}`, {
       method: 'DELETE',
       headers: this.getHeaders(includeAuth),
-      credentials: 'same-origin',
+      credentials: 'include',
     });
 
     return this.handleResponse<T>(response);
