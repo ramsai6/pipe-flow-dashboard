@@ -17,7 +17,9 @@ export interface SignupRequest {
 }
 
 export interface AuthResponse {
+  success: boolean;
   token: string;
+  timestamp?: string;
 }
 
 export interface RegisterResponse {
@@ -138,8 +140,14 @@ export const authService = {
     try {
       const response = await apiClient.post<AuthResponse>(API_ENDPOINTS.AUTH.LOGIN, validatedData, false);
       
-      // Extract token from response (remove "Bearer " prefix if present)
-      const token = response.token.startsWith('Bearer ') ? response.token.substring(7) : response.token;
+      // Check if login was successful
+      if (!response.success) {
+        recordLoginAttempt(validatedData.email, false);
+        throw new Error('Invalid credentials');
+      }
+      
+      // Extract token from response
+      const token = response.token;
       tokenService.setTokens(token);
       
       // Get user profile after successful login
