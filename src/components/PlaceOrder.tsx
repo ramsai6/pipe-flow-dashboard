@@ -67,10 +67,7 @@ const PlaceOrder = () => {
           productId: item.productId,
           quantity: parseInt(item.quantity)
         })),
-        address: orderData.address,
-        deliveryDate: orderData.deliveryDate,
-        notes: orderData.notes,
-        vendorEmail: user?.role === 'admin' ? orderData.vendorEmail : undefined
+        shippingAddress: orderData.address, // Changed from 'address' to 'shippingAddress'
       };
 
       await orderService.createOrder(orderRequest);

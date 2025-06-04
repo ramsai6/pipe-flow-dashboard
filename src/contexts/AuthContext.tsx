@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { authService } from '../services/authService';
 
@@ -80,7 +79,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         username: userData.name,
         email: userData.email,
         password: userData.password,
-        confirmPassword: userData.password,
       });
       setUser(newUser);
       return true;
