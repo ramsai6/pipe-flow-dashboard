@@ -1,4 +1,3 @@
-
 import { apiClient } from './apiClient';
 import { API_ENDPOINTS, API_CONFIG } from '../config/api';
 import { Order, OrderFilters } from '../types/order';
@@ -16,11 +15,11 @@ export interface OrderListResponse {
 }
 
 export interface CreateOrderRequest {
+  shippingAddress: string;
   items: Array<{
-    productId: string;
+    productId: number;
     quantity: number;
   }>;
-  shippingAddress: string;
 }
 
 export interface GuestOrderRequest {
@@ -50,6 +49,18 @@ interface BackendOrderRequest {
   shippingAddress: string;
   items: Array<{
     productId: number;
+    quantity: number;
+  }>;
+}
+
+interface CreateOrderResponse {
+  id: number;
+  status: string;
+  orderDate: string;
+  shippingAddress: string;
+  items: Array<{
+    productId: number;
+    name: string;
     quantity: number;
   }>;
 }
@@ -160,7 +171,7 @@ export const orderService = {
         vendorEmail: 'current@user.com',
         vendorName: 'Current User',
         items: orderData.items.map(item => ({
-          productId: item.productId,
+          productId: item.productId.toString(),
           productName: `Product ${item.productId}`,
           quantity: item.quantity,
           price: 25.99
@@ -177,12 +188,12 @@ export const orderService = {
     const backendRequest: BackendOrderRequest = {
       shippingAddress: orderData.shippingAddress,
       items: orderData.items.map(item => ({
-        productId: parseInt(item.productId),
+        productId: item.productId,
         quantity: item.quantity
       }))
     };
 
-    const backendOrder = await apiClient.post<BackendOrder>(API_ENDPOINTS.ORDERS.CREATE, backendRequest);
+    const backendOrder = await apiClient.post<CreateOrderResponse>(API_ENDPOINTS.ORDERS.CREATE, backendRequest);
     return mapBackendOrder(backendOrder);
   },
 
@@ -228,7 +239,10 @@ export const orderService = {
     // In a real implementation, you might have a separate guest order endpoint
     const orderRequest: CreateOrderRequest = {
       shippingAddress: `${orderData.name}\n${orderData.address}\nPhone: ${orderData.phone}\nEmail: ${orderData.email}`,
-      items: orderData.items
+      items: orderData.items.map(item => ({
+        productId: parseInt(item.productId),
+        quantity: item.quantity
+      }))
     };
 
     if (API_CONFIG.IS_MOCK_ENABLED) {

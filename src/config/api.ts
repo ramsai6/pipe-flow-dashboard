@@ -9,7 +9,7 @@ export const API_ENDPOINTS = {
   AUTH: {
     REGISTER: '/auth/register',
     LOGIN: '/auth/login',
-    PROFILE: '/auth/profile',
+    ME: '/auth/me', // Changed from PROFILE to ME
   },
   // Product endpoints
   PRODUCTS: {

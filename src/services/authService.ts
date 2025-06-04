@@ -4,35 +4,7 @@ import { API_ENDPOINTS, API_CONFIG } from '../config/api';
 import { User } from '../contexts/AuthContext';
 import { tokenService } from './tokenService';
 import { validateAndSanitize, loginSchema, signupSchema, sanitizeEmail } from './validationService';
-
-export interface LoginRequest {
-  email: string;
-  password: string;
-}
-
-export interface SignupRequest {
-  username: string;
-  email: string;
-  password: string;
-}
-
-export interface AuthResponse {
-  success: boolean;
-  token: string;
-  timestamp?: string;
-}
-
-export interface RegisterResponse {
-  success: boolean;
-  message: string;
-  timestamp: string;
-}
-
-export interface ProfileResponse {
-  id: number;
-  username: string;
-  email: string;
-}
+import { LoginRequest, SignupRequest, LoginResponse, RegisterResponse, UserProfileResponse } from '../types/auth';
 
 // Role mapping from backend to frontend
 const mapRole = (backendRole?: string): 'vendor' | 'admin' | 'guest' => {
@@ -138,20 +110,15 @@ export const authService = {
     }
 
     try {
-      const response = await apiClient.post<AuthResponse>(API_ENDPOINTS.AUTH.LOGIN, validatedData, false);
-      
-      // Check if login was successful
-      if (!response.success) {
-        recordLoginAttempt(validatedData.email, false);
-        throw new Error('Invalid credentials');
-      }
+      // API returns { token, expiresIn } for login
+      const response = await apiClient.post<LoginResponse>(API_ENDPOINTS.AUTH.LOGIN, validatedData, false);
       
       // Extract token from response
       const token = response.token;
       tokenService.setTokens(token);
       
       // Get user profile after successful login
-      const profileResponse = await apiClient.get<ProfileResponse>(API_ENDPOINTS.AUTH.PROFILE);
+      const profileResponse = await apiClient.get<UserProfileResponse>(API_ENDPOINTS.AUTH.ME);
       
       recordLoginAttempt(validatedData.email, true);
       
@@ -159,7 +126,7 @@ export const authService = {
         id: profileResponse.id.toString(),
         email: profileResponse.email,
         name: profileResponse.username,
-        role: 'vendor', // Default role for now
+        role: mapRole(profileResponse.role),
       };
     } catch (error) {
       recordLoginAttempt(validatedData.email, false);
@@ -191,7 +158,7 @@ export const authService = {
     }
 
     try {
-      // Register user
+      // Register user - API returns { success, message, timestamp }
       const registerResponse = await apiClient.post<RegisterResponse>(API_ENDPOINTS.AUTH.REGISTER, {
         username: validatedData.username,
         email: validatedData.email,
@@ -248,13 +215,13 @@ export const authService = {
       };
     }
 
-    const response = await apiClient.get<ProfileResponse>(API_ENDPOINTS.AUTH.PROFILE);
+    const response = await apiClient.get<UserProfileResponse>(API_ENDPOINTS.AUTH.ME);
     
     return {
       id: response.id.toString(),
       email: response.email,
       name: response.username,
-      role: 'vendor', // Default role for now
+      role: mapRole(response.role),
     };
   },
 
