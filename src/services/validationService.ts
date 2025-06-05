@@ -1,4 +1,3 @@
-
 import { z } from 'zod';
 
 // Input sanitization utilities
@@ -17,6 +16,11 @@ export const sanitizeInput = (input: string): string => {
 
 export const sanitizeEmail = (email: string): string => {
   return email.toLowerCase().trim();
+};
+
+export const sanitizePhone = (phone: string): string => {
+  // Remove all non-digit characters except + for international numbers
+  return phone.replace(/[^\d+]/g, '').trim();
 };
 
 // Validation schemas
@@ -39,8 +43,18 @@ export const signupSchema = z.object({
     .min(1, 'Email is required')
     .max(254, 'Email too long'),
   password: z.string()
-    .min(1, 'Password is required')
-    .max(128, 'Password too long'),
+    .min(8, 'Password must be at least 8 characters')
+    .max(128, 'Password too long')
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain at least one uppercase letter, one lowercase letter, and one number'),
+  phone: z.string()
+    .regex(/^\+?[\d\s-()]{10,15}$/, 'Invalid phone number format')
+    .optional(),
+});
+
+export const verificationSchema = z.object({
+  email: z.string().email('Invalid email format'),
+  code: z.string().length(6, 'Verification code must be 6 digits'),
+  type: z.enum(['email', 'phone']),
 });
 
 export const orderSchema = z.object({

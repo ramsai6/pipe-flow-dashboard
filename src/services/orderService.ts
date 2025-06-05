@@ -34,13 +34,13 @@ export interface GuestOrderRequest {
 }
 
 interface BackendOrder {
-  orderId: number;
+  id: number; // Changed from orderId to match API response
   status: string;
   shippingAddress: string;
   orderDate: string;
   items: Array<{
     productId: number;
-    productName: string;
+    name: string; // Changed from productName to match API response
     quantity: number;
   }>;
 }
@@ -66,12 +66,12 @@ interface CreateOrderResponse {
 }
 
 const mapBackendOrder = (backendOrder: BackendOrder): Order => ({
-  id: backendOrder.orderId.toString(),
+  id: backendOrder.id.toString(),
   vendorEmail: 'current@user.com', // Default since backend doesn't return this
   vendorName: 'Current User',
   items: backendOrder.items.map(item => ({
     productId: item.productId.toString(),
-    productName: item.productName,
+    productName: item.name,
     quantity: item.quantity,
     price: 25.99 // Default price since backend doesn't return this
   })),
@@ -194,7 +194,17 @@ export const orderService = {
     };
 
     const backendOrder = await apiClient.post<CreateOrderResponse>(API_ENDPOINTS.ORDERS.CREATE, backendRequest);
-    return mapBackendOrder(backendOrder);
+    
+    // Convert CreateOrderResponse to BackendOrder format for mapping
+    const mappedBackendOrder: BackendOrder = {
+      id: backendOrder.id,
+      status: backendOrder.status,
+      shippingAddress: backendOrder.shippingAddress,
+      orderDate: backendOrder.orderDate,
+      items: backendOrder.items
+    };
+    
+    return mapBackendOrder(mappedBackendOrder);
   },
 
   async updateOrder(id: string, updates: Partial<Order>): Promise<Order> {

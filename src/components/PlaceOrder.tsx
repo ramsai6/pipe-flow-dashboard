@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -64,10 +65,10 @@ const PlaceOrder = () => {
 
       const orderRequest = {
         items: validItems.map(item => ({
-          productId: item.productId,
+          productId: parseInt(item.productId), // Convert string to number for API
           quantity: parseInt(item.quantity)
         })),
-        shippingAddress: orderData.address, // Changed from 'address' to 'shippingAddress'
+        shippingAddress: orderData.address,
       };
 
       await orderService.createOrder(orderRequest);
