@@ -28,7 +28,9 @@ const OrderManagement = () => {
   const loadOrders = async (page = 1) => {
     try {
       setLoading(true);
+      console.log('Loading orders with filters:', filters);
       const response: OrderListResponse = await orderService.getOrders(page, 10, filters);
+      console.log('Orders response:', response);
       setOrders(response.data);
       setTotalOrders(response.pagination.total);
       setCurrentPage(page);
@@ -102,9 +104,9 @@ const OrderManagement = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">
+    <div className="space-y-4 sm:space-y-6 p-4 sm:p-0">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
           {user?.role === 'admin' ? 'All Orders' : 'My Orders'}
         </h1>
         <div className="text-sm text-gray-500">
@@ -118,7 +120,7 @@ const OrderManagement = () => {
           <CardTitle>Filters</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {user?.role === 'admin' && (
               <div className="space-y-2">
                 <label className="text-sm font-medium">Vendor</label>
@@ -142,6 +144,7 @@ const OrderManagement = () => {
                   <SelectItem value="confirmed">Confirmed</SelectItem>
                   <SelectItem value="shipped">Shipped</SelectItem>
                   <SelectItem value="delivered">Delivered</SelectItem>
+                  <SelectItem value="placed">Placed</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -165,7 +168,7 @@ const OrderManagement = () => {
             </div>
           </div>
           
-          <div className="flex gap-2 mt-4">
+          <div className="flex flex-col sm:flex-row gap-2 mt-4">
             <Button onClick={applyFilters} disabled={loading}>
               {loading ? 'Applying...' : 'Apply Filters'}
             </Button>
@@ -174,85 +177,85 @@ const OrderManagement = () => {
         </CardContent>
       </Card>
 
-      {/* Orders Table */}
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order ID</th>
-                  {user?.role === 'admin' && (
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vendor</th>
-                  )}
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Products</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Order Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delivery Date</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {displayOrders.map((order) => (
-                  <tr key={order.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {order.id}
-                    </td>
-                    {user?.role === 'admin' && (
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        <div>
-                          <div className="font-medium">{order.vendorName}</div>
-                          <div className="text-gray-500">{order.vendorEmail}</div>
-                        </div>
-                      </td>
+      {/* Orders List - Mobile Friendly Cards */}
+      <div className="space-y-4">
+        {displayOrders.map((order) => (
+          <Card key={order.id} className="w-full">
+            <CardContent className="p-4 sm:p-6">
+              <div className="space-y-4">
+                {/* Order Header */}
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2">
+                  <div>
+                    <h3 className="text-lg font-semibold">Order #{order.id}</h3>
+                    <p className="text-sm text-gray-600">{order.orderDate}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {user?.role === 'admin' ? (
+                      <Select value={order.status} onValueChange={(value) => updateOrderStatus(order.id, value)}>
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="confirmed">Confirmed</SelectItem>
+                          <SelectItem value="shipped">Shipped</SelectItem>
+                          <SelectItem value="delivered">Delivered</SelectItem>
+                          <SelectItem value="placed">Placed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge className={getStatusColor(order.status)}>
+                        {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                      </Badge>
                     )}
-                    <td className="px-6 py-4 text-sm text-gray-900">
-                      <div className="space-y-1">
-                        {order.items.map((item, index) => (
-                          <div key={index}>
-                            <div className="font-medium">{item.productName}</div>
-                            <div className="text-gray-500">Qty: {item.quantity}</div>
-                          </div>
-                        ))}
+                  </div>
+                </div>
+
+                {/* Vendor Info - Only for Admin */}
+                {user?.role === 'admin' && (
+                  <div className="border-t pt-4">
+                    <h4 className="text-sm font-medium text-gray-700 mb-1">Vendor</h4>
+                    <div className="text-sm">
+                      <div className="font-medium">{order.vendorName}</div>
+                      <div className="text-gray-500">{order.vendorEmail}</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Products */}
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-2">Products</h4>
+                  <div className="space-y-2">
+                    {order.items.map((item, index) => (
+                      <div key={index} className="flex justify-between items-center bg-gray-50 p-3 rounded-md">
+                        <div>
+                          <div className="font-medium text-sm">{item.productName}</div>
+                          <div className="text-xs text-gray-500">ID: {item.productId}</div>
+                        </div>
+                        <div className="text-sm font-medium">Qty: {item.quantity}</div>
                       </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {user?.role === 'admin' ? (
-                        <Select value={order.status} onValueChange={(value) => updateOrderStatus(order.id, value)}>
-                          <SelectTrigger className="w-32">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="pending">Pending</SelectItem>
-                            <SelectItem value="confirmed">Confirmed</SelectItem>
-                            <SelectItem value="shipped">Shipped</SelectItem>
-                            <SelectItem value="delivered">Delivered</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Badge className={getStatusColor(order.status)}>
-                          {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
-                        </Badge>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {order.orderDate}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {order.deliveryDate}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          
-          {displayOrders.length === 0 && !loading && (
-            <div className="text-center py-12">
-              <p className="text-gray-500">No orders found matching your criteria.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Shipping Address */}
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-medium text-gray-700 mb-1">Shipping Address</h4>
+                  <p className="text-sm text-gray-600 whitespace-pre-line">{order.address}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {displayOrders.length === 0 && !loading && (
+        <Card>
+          <CardContent className="text-center py-12">
+            <p className="text-gray-500">No orders found matching your criteria.</p>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

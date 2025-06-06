@@ -1,4 +1,3 @@
-
 import { apiClient } from './apiClient';
 import { API_ENDPOINTS, API_CONFIG } from '../config/api';
 import { Order, OrderFilters } from '../types/order';
@@ -38,11 +37,12 @@ interface BackendOrderResponse {
   userId?: number;
   status: string;
   shippingAddress: string;
+  orderDate: string;
   items: Array<{
     productId: number;
+    productName: string;
     quantity: number;
   }>;
-  createdAt: string;
 }
 
 interface CreateOrderResponse {
@@ -63,12 +63,12 @@ const mapBackendOrder = (backendOrder: BackendOrderResponse): Order => ({
   vendorName: 'Current User',
   items: backendOrder.items.map(item => ({
     productId: item.productId.toString(),
-    productName: `Product ${item.productId}`,
+    productName: item.productName,
     quantity: item.quantity,
     price: 25.99
   })),
   status: backendOrder.status.toLowerCase() as Order['status'],
-  orderDate: backendOrder.createdAt ? backendOrder.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
+  orderDate: backendOrder.orderDate ? backendOrder.orderDate.split('T')[0] : new Date().toISOString().split('T')[0],
   deliveryDate: '',
   address: backendOrder.shippingAddress
 });
@@ -103,7 +103,10 @@ export const orderService = {
 
     try {
       const backendOrders = await apiClient.get<BackendOrderResponse[]>(API_ENDPOINTS.ORDERS.LIST);
+      console.log('Raw backend orders:', backendOrders);
+      
       const mappedOrders = backendOrders.map(mapBackendOrder);
+      console.log('Mapped orders:', mappedOrders);
       
       let filteredData = mappedOrders;
       if (filters) {
@@ -169,7 +172,6 @@ export const orderService = {
 
     const response = await apiClient.post<CreateOrderResponse>(API_ENDPOINTS.ORDERS.CREATE, orderData);
     
-    // Create a mock order with the response data
     const newOrder: Order = {
       id: response.orderId.toString(),
       vendorEmail: 'current@user.com',
