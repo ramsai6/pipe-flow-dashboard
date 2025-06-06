@@ -5,28 +5,51 @@ export interface LoginRequest {
 }
 
 export interface SignupRequest {
-  username: string;
   email: string;
   password: string;
-  phone?: string; // Add phone field
+  name: string;
 }
 
-export interface LoginResponse {
+export interface SigninResponse {
   token: string;
-  expiresIn: number;
+  refreshToken: string;
+  role: string;
 }
 
-export interface RegisterResponse {
-  success: boolean;
+export interface SignupResponse {
   message: string;
-  timestamp: string;
 }
 
 export interface UserProfileResponse {
   id: number;
-  username: string;
+  name: string;
   email: string;
   role: string;
+}
+
+export interface RefreshTokenRequest {
+  refreshToken: string;
+}
+
+export interface RefreshTokenResponse {
+  token: string;
+}
+
+export interface ForgotPasswordRequest {
+  email: string;
+}
+
+export interface ForgotPasswordResponse {
+  message: string;
+}
+
+export interface ResetPasswordRequest {
+  token: string;
+  newPassword: string;
+}
+
+export interface ResetPasswordResponse {
+  message: string;
 }
 
 export interface VerificationRequest {

@@ -10,7 +10,7 @@ import { User } from '../../contexts/AuthContext';
 import VerificationForm from './VerificationForm';
 
 interface RegisterFormProps {
-  onRegister: (userData: Omit<User, 'id'> & { password: string; phone?: string }) => Promise<boolean>;
+  onRegister: (userData: Omit<User, 'id'> & { password: string }) => Promise<boolean>;
 }
 
 const RegisterForm = ({ onRegister }: RegisterFormProps) => {
@@ -18,13 +18,10 @@ const RegisterForm = ({ onRegister }: RegisterFormProps) => {
     email: '',
     password: '',
     name: '',
-    phone: ''
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [showVerification, setShowVerification] = useState(false);
-  const [verificationType, setVerificationType] = useState<'email' | 'phone'>('email');
-  const [requirePhoneVerification, setRequirePhoneVerification] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,48 +40,10 @@ const RegisterForm = ({ onRegister }: RegisterFormProps) => {
         return;
       }
 
-      if (formData.phone && !/^\+?[\d\s-()]{10,15}$/.test(formData.phone)) {
-        setError('Please enter a valid phone number');
-        return;
-      }
-
-      // Show email verification first
-      setShowVerification(true);
-      setVerificationType('email');
-      
-      toast({
-        title: "Verification required",
-        description: "Please check your email for a verification code.",
-      });
-    } catch (err) {
-      setError('Registration failed. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleEmailVerificationComplete = () => {
-    if (formData.phone && requirePhoneVerification) {
-      setVerificationType('phone');
-      toast({
-        title: "Email verified!",
-        description: "Now please verify your phone number.",
-      });
-    } else {
-      completeRegistration();
-    }
-  };
-
-  const handlePhoneVerificationComplete = () => {
-    completeRegistration();
-  };
-
-  const completeRegistration = async () => {
-    try {
+      // Register directly without verification for now
       const success = await onRegister({
         ...formData,
         role: 'vendor',
-        phone: formData.phone || undefined
       });
       
       if (success) {
@@ -94,37 +53,17 @@ const RegisterForm = ({ onRegister }: RegisterFormProps) => {
         });
       } else {
         setError('Registration failed. Please try again.');
-        setShowVerification(false);
       }
-    } catch (err) {
-      setError('Registration failed. Please try again.');
-      setShowVerification(false);
+    } catch (err: any) {
+      setError(err.message || 'Registration failed. Please try again.');
+    } finally {
+      setLoading(false);
     }
-  };
-
-  const handleResendCode = async () => {
-    // Simulate resend API call
-    await new Promise(resolve => setTimeout(resolve, 500));
   };
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
-
-  if (showVerification) {
-    return (
-      <VerificationForm
-        email={formData.email}
-        type={verificationType}
-        onVerificationComplete={
-          verificationType === 'email' 
-            ? handleEmailVerificationComplete 
-            : handlePhoneVerificationComplete
-        }
-        onResendCode={handleResendCode}
-      />
-    );
-  }
 
   return (
     <Card className="w-full max-w-md mx-auto">
@@ -141,6 +80,7 @@ const RegisterForm = ({ onRegister }: RegisterFormProps) => {
               onChange={(e) => handleChange('name', e.target.value)}
               required
               placeholder="Enter your full name"
+              maxLength={100}
             />
           </div>
           
@@ -153,30 +93,8 @@ const RegisterForm = ({ onRegister }: RegisterFormProps) => {
               onChange={(e) => handleChange('email', e.target.value)}
               required
               placeholder="Enter your email"
+              maxLength={254}
             />
-          </div>
-          
-          <div className="space-y-2">
-            <Label htmlFor="phone">Phone Number (Optional)</Label>
-            <Input
-              id="phone"
-              type="tel"
-              value={formData.phone}
-              onChange={(e) => handleChange('phone', e.target.value)}
-              placeholder="+1 (555) 123-4567"
-            />
-            {formData.phone && (
-              <div className="flex items-center space-x-2">
-                <Checkbox
-                  id="requirePhoneVerification"
-                  checked={requirePhoneVerification}
-                  onCheckedChange={(checked) => setRequirePhoneVerification(checked as boolean)}
-                />
-                <Label htmlFor="requirePhoneVerification" className="text-sm">
-                  Verify phone number
-                </Label>
-              </div>
-            )}
           </div>
           
           <div className="space-y-2">
@@ -188,6 +106,8 @@ const RegisterForm = ({ onRegister }: RegisterFormProps) => {
               onChange={(e) => handleChange('password', e.target.value)}
               required
               placeholder="Enter your password"
+              minLength={8}
+              maxLength={128}
             />
             <p className="text-xs text-gray-500">
               Must be at least 8 characters with uppercase, lowercase, and number
@@ -195,7 +115,9 @@ const RegisterForm = ({ onRegister }: RegisterFormProps) => {
           </div>
           
           {error && (
-            <div className="text-red-600 text-sm">{error}</div>
+            <div className="text-red-600 text-sm bg-red-50 p-2 rounded border">
+              {error}
+            </div>
           )}
           
           <Button type="submit" className="w-full" disabled={loading}>

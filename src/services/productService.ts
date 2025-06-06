@@ -5,6 +5,7 @@ import { API_ENDPOINTS, API_CONFIG } from '../config/api';
 export interface Product {
   id: string;
   name: string;
+  active?: boolean;
   description?: string;
   category?: string;
   price?: number;
@@ -14,29 +15,27 @@ export interface Product {
 interface BackendProduct {
   id: number;
   name: string;
-  description: string;
-  price: number;
-  stockQuantity: number;
-  category: string;
+  active: boolean;
 }
 
 // Mock products data (fallback)
 const mockProducts: Product[] = [
-  { id: '1', name: 'PVC Pipe 4 inch - Schedule 40', category: 'Pipes', price: 25.99, stockQuantity: 100 },
-  { id: '2', name: 'PVC Pipe 6 inch - Schedule 40', category: 'Pipes', price: 35.99, stockQuantity: 50 },
-  { id: '3', name: 'PVC Pipe 8 inch - Schedule 40', category: 'Pipes', price: 45.99, stockQuantity: 25 },
-  { id: '4', name: 'PVC Fitting - 90° Elbow 4 inch', category: 'Fittings', price: 12.99, stockQuantity: 200 },
-  { id: '5', name: 'PVC Fitting - T-Joint 6 inch', category: 'Fittings', price: 18.99, stockQuantity: 150 },
-  { id: '6', name: 'PVC Coupling 4 inch', category: 'Fittings', price: 8.99, stockQuantity: 300 },
+  { id: '1', name: 'PVC Pipe 4 inch - Schedule 40', category: 'Pipes', price: 25.99, stockQuantity: 100, active: true },
+  { id: '2', name: 'PVC Pipe 6 inch - Schedule 40', category: 'Pipes', price: 35.99, stockQuantity: 50, active: true },
+  { id: '3', name: 'PVC Pipe 8 inch - Schedule 40', category: 'Pipes', price: 45.99, stockQuantity: 25, active: true },
+  { id: '4', name: 'PVC Fitting - 90° Elbow 4 inch', category: 'Fittings', price: 12.99, stockQuantity: 200, active: true },
+  { id: '5', name: 'PVC Fitting - T-Joint 6 inch', category: 'Fittings', price: 18.99, stockQuantity: 150, active: true },
+  { id: '6', name: 'PVC Coupling 4 inch', category: 'Fittings', price: 8.99, stockQuantity: 300, active: true },
 ];
 
 const mapBackendProduct = (backendProduct: BackendProduct): Product => ({
   id: backendProduct.id.toString(),
   name: backendProduct.name,
-  description: backendProduct.description,
-  category: backendProduct.category,
-  price: backendProduct.price,
-  stockQuantity: backendProduct.stockQuantity,
+  active: backendProduct.active,
+  // Set default values for fields not provided by API
+  category: 'General',
+  price: 0,
+  stockQuantity: 0,
 });
 
 export const productService = {
@@ -72,24 +71,62 @@ export const productService = {
     }
   },
 
-  async createProduct(productData: Omit<Product, 'id'>): Promise<Product> {
+  async createProduct(productData: { name: string }): Promise<Product> {
     if (API_CONFIG.IS_MOCK_ENABLED) {
       await new Promise(resolve => setTimeout(resolve, 500));
       const newProduct: Product = {
         id: Date.now().toString(),
-        ...productData,
+        name: productData.name,
+        active: true,
       };
       return newProduct;
     }
 
     const backendProduct = await apiClient.post<BackendProduct>(API_ENDPOINTS.PRODUCTS.CREATE, {
       name: productData.name,
-      description: productData.description || '',
-      price: productData.price || 0,
-      stockQuantity: productData.stockQuantity || 0,
-      category: productData.category || '',
     });
     
     return mapBackendProduct(backendProduct);
+  },
+
+  async updateProduct(id: string, productData: { name: string }): Promise<void> {
+    if (API_CONFIG.IS_MOCK_ENABLED) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return;
+    }
+
+    await apiClient.put(API_ENDPOINTS.PRODUCTS.UPDATE(id), productData);
+  },
+
+  async deleteProduct(id: string): Promise<void> {
+    if (API_CONFIG.IS_MOCK_ENABLED) {
+      await new Promise(resolve => setTimeout(resolve, 500));
+      return;
+    }
+
+    await apiClient.delete(API_ENDPOINTS.PRODUCTS.DELETE(id));
+  },
+
+  async uploadProducts(file: File): Promise<void> {
+    if (API_CONFIG.IS_MOCK_ENABLED) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    // Use fetch directly for file upload
+    const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.PRODUCTS.UPLOAD}`, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to upload products');
+    }
   }
 };

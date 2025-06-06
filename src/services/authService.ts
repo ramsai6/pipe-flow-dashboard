@@ -4,7 +4,15 @@ import { API_ENDPOINTS, API_CONFIG } from '../config/api';
 import { User } from '../contexts/AuthContext';
 import { tokenService } from './tokenService';
 import { validateAndSanitize, loginSchema, signupSchema, sanitizeEmail } from './validationService';
-import { LoginRequest, SignupRequest, LoginResponse, RegisterResponse, UserProfileResponse } from '../types/auth';
+import { 
+  LoginRequest, 
+  SignupRequest, 
+  SigninResponse, 
+  SignupResponse, 
+  UserProfileResponse,
+  RefreshTokenRequest,
+  RefreshTokenResponse 
+} from '../types/auth';
 
 // Role mapping from backend to frontend
 const mapRole = (backendRole?: string): 'vendor' | 'admin' | 'guest' => {
@@ -110,12 +118,11 @@ export const authService = {
     }
 
     try {
-      // API returns { token, expiresIn } for login
-      const response = await apiClient.post<LoginResponse>(API_ENDPOINTS.AUTH.LOGIN, validatedData, false);
+      // API returns { token, refreshToken, role } for signin
+      const response = await apiClient.post<SigninResponse>(API_ENDPOINTS.AUTH.SIGNIN, validatedData, false);
       
-      // Extract token from response
-      const token = response.token;
-      tokenService.setTokens(token);
+      // Store tokens
+      tokenService.setTokens(response.token, response.refreshToken);
       
       // Get user profile after successful login
       const profileResponse = await apiClient.get<UserProfileResponse>(API_ENDPOINTS.AUTH.ME);
@@ -125,7 +132,7 @@ export const authService = {
       return {
         id: profileResponse.id.toString(),
         email: profileResponse.email,
-        name: profileResponse.username,
+        name: profileResponse.name,
         role: mapRole(profileResponse.role),
       };
     } catch (error) {
@@ -137,7 +144,7 @@ export const authService = {
   async signup(userData: SignupRequest): Promise<User> {
     // Validate and sanitize input
     const validatedData = validateAndSanitize(signupSchema, {
-      username: userData.username,
+      name: userData.name,
       email: sanitizeEmail(userData.email),
       password: userData.password,
     });
@@ -149,7 +156,7 @@ export const authService = {
       const user: User = {
         id: Math.random().toString(36),
         email: validatedData.email,
-        name: validatedData.username,
+        name: validatedData.name,
         role: 'vendor',
       };
       const token = tokenService.generateSecureGuestToken().replace('guest_', 'vendor_');
@@ -158,17 +165,14 @@ export const authService = {
     }
 
     try {
-      // Register user - API returns { success, message, timestamp }
-      const registerResponse = await apiClient.post<RegisterResponse>(API_ENDPOINTS.AUTH.REGISTER, {
-        username: validatedData.username,
+      // Register user - API returns { message }
+      const registerResponse = await apiClient.post<SignupResponse>(API_ENDPOINTS.AUTH.SIGNUP, {
+        name: validatedData.name,
         email: validatedData.email,
         password: validatedData.password,
       }, false);
       
-      // Check if registration was successful
-      if (!registerResponse.success) {
-        throw new Error(registerResponse.message || 'Registration failed');
-      }
+      console.log('Registration successful:', registerResponse.message);
       
       // Login after successful registration
       return this.login({ email: validatedData.email, password: validatedData.password });
@@ -220,13 +224,43 @@ export const authService = {
     return {
       id: response.id.toString(),
       email: response.email,
-      name: response.username,
+      name: response.name,
       role: mapRole(response.role),
     };
   },
 
+  async refreshToken(): Promise<string> {
+    const refreshToken = tokenService.getRefreshToken();
+    if (!refreshToken) {
+      throw new Error('No refresh token available');
+    }
+
+    const response = await apiClient.post<RefreshTokenResponse>(
+      API_ENDPOINTS.AUTH.REFRESH, 
+      { refreshToken }, 
+      false
+    );
+    
+    tokenService.setTokens(response.token, refreshToken);
+    return response.token;
+  },
+
   async logout(): Promise<void> {
-    tokenService.clearTokens();
+    try {
+      await apiClient.post(API_ENDPOINTS.AUTH.LOGOUT);
+    } catch (error) {
+      console.error('Logout API call failed:', error);
+    } finally {
+      tokenService.clearTokens();
+    }
+  },
+
+  async forgotPassword(email: string): Promise<void> {
+    await apiClient.post(API_ENDPOINTS.AUTH.FORGOT_PASSWORD, { email }, false);
+  },
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    await apiClient.post(API_ENDPOINTS.AUTH.RESET_PASSWORD, { token, newPassword }, false);
   },
 
   loginAsGuest(): User {

@@ -1,3 +1,4 @@
+
 import { z } from 'zod';
 
 // Input sanitization utilities
@@ -35,9 +36,9 @@ export const loginSchema = z.object({
 });
 
 export const signupSchema = z.object({
-  username: z.string()
-    .min(1, 'Username is required')
-    .max(50, 'Username too long'),
+  name: z.string()
+    .min(1, 'Name is required')
+    .max(100, 'Name too long'),
   email: z.string()
     .email('Invalid email format')
     .min(1, 'Email is required')
