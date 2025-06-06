@@ -11,7 +11,7 @@ export interface Order {
   vendorEmail: string;
   vendorName: string;
   items: OrderItem[];
-  status: 'pending' | 'confirmed' | 'shipped' | 'delivered';
+  status: 'pending' | 'confirmed' | 'shipped' | 'delivered' | 'placed' | 'cancelled';
   orderDate: string;
   deliveryDate: string;
   address: string;

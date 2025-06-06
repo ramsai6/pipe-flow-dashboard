@@ -24,7 +24,7 @@ export const sanitizePhone = (phone: string): string => {
   return phone.replace(/[^\d+]/g, '').trim();
 };
 
-// Validation schemas
+// Validation schemas - removed password validation
 export const loginSchema = z.object({
   email: z.string()
     .email('Invalid email format')
@@ -44,9 +44,8 @@ export const signupSchema = z.object({
     .min(1, 'Email is required')
     .max(254, 'Email too long'),
   password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(128, 'Password too long')
-    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/, 'Password must contain at least one uppercase letter, one lowercase letter, and one number'),
+    .min(1, 'Password is required')
+    .max(128, 'Password too long'),
   phone: z.string()
     .regex(/^\+?[\d\s-()]{10,15}$/, 'Invalid phone number format')
     .optional(),

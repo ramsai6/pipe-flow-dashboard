@@ -35,6 +35,7 @@ export interface GuestOrderRequest {
 
 interface BackendOrderResponse {
   orderId: number;
+  userId?: number;
   status: string;
   shippingAddress: string;
   items: Array<{
@@ -47,6 +48,13 @@ interface BackendOrderResponse {
 interface CreateOrderResponse {
   orderId: number;
   status: string;
+  message: string;
+  timestamp: string;
+}
+
+interface UpdateOrderResponse {
+  message: string;
+  timestamp: string;
 }
 
 const mapBackendOrder = (backendOrder: BackendOrderResponse): Order => ({
@@ -60,7 +68,7 @@ const mapBackendOrder = (backendOrder: BackendOrderResponse): Order => ({
     price: 25.99
   })),
   status: backendOrder.status.toLowerCase() as Order['status'],
-  orderDate: backendOrder.createdAt.split('T')[0],
+  orderDate: backendOrder.createdAt ? backendOrder.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
   deliveryDate: '',
   address: backendOrder.shippingAddress
 });
@@ -193,7 +201,7 @@ export const orderService = {
       return { ...order };
     }
 
-    await apiClient.put(API_ENDPOINTS.ORDERS.UPDATE(id), updates);
+    await apiClient.put<UpdateOrderResponse>(API_ENDPOINTS.ORDERS.UPDATE(id), updates);
     return this.getOrder(id);
   },
 
@@ -209,7 +217,7 @@ export const orderService = {
       return { ...order, status: status as Order['status'] };
     }
 
-    await apiClient.put(API_ENDPOINTS.ORDERS.UPDATE_STATUS(id), { status });
+    await apiClient.put<UpdateOrderResponse>(API_ENDPOINTS.ORDERS.UPDATE_STATUS(id), { status });
     return this.getOrder(id);
   },
 
@@ -223,7 +231,7 @@ export const orderService = {
       return;
     }
 
-    await apiClient.delete(API_ENDPOINTS.ORDERS.CANCEL(id));
+    await apiClient.delete<UpdateOrderResponse>(API_ENDPOINTS.ORDERS.CANCEL(id));
   },
 
   async createGuestOrder(orderData: GuestOrderRequest): Promise<{ success: boolean; orderId?: string }> {
