@@ -6,10 +6,10 @@ import { tokenService } from './tokenService';
 import { validateAndSanitize, loginSchema, signupSchema, sanitizeEmail } from './validationService';
 import { 
   LoginRequest, 
-  SignupRequest, 
-  SigninResponse, 
-  SignupResponse, 
-  UserProfileResponse,
+  RegisterRequest, 
+  LoginResponse, 
+  RegisterResponse, 
+  ProfileResponse,
   RefreshTokenRequest,
   RefreshTokenResponse 
 } from '../types/auth';
@@ -118,22 +118,27 @@ export const authService = {
     }
 
     try {
-      // API returns { token, refreshToken, role } for signin
-      const response = await apiClient.post<SigninResponse>(API_ENDPOINTS.AUTH.SIGNIN, validatedData, false);
+      // API returns { token, success, timestamp } for login
+      const response = await apiClient.post<LoginResponse>(API_ENDPOINTS.AUTH.LOGIN, validatedData, false);
       
-      // Store tokens
-      tokenService.setTokens(response.token, response.refreshToken);
+      if (!response.success) {
+        throw new Error('Login failed');
+      }
+      
+      // Store token
+      tokenService.setTokens(response.token);
       
       // Get user profile after successful login
-      const profileResponse = await apiClient.get<UserProfileResponse>(API_ENDPOINTS.AUTH.ME);
+      const profileResponse = await apiClient.get<ProfileResponse>(API_ENDPOINTS.AUTH.PROFILE);
       
       recordLoginAttempt(validatedData.email, true);
       
+      // For now, create a basic user object since the profile endpoint only returns email
       return {
-        id: profileResponse.id.toString(),
+        id: Math.random().toString(36), // Generate a temp ID
         email: profileResponse.email,
-        name: profileResponse.name,
-        role: mapRole(profileResponse.role),
+        name: validatedData.email.split('@')[0], // Use email prefix as name temporarily
+        role: 'vendor', // Default role
       };
     } catch (error) {
       recordLoginAttempt(validatedData.email, false);
@@ -141,7 +146,7 @@ export const authService = {
     }
   },
 
-  async signup(userData: SignupRequest): Promise<User> {
+  async signup(userData: RegisterRequest): Promise<User> {
     // Validate and sanitize input
     const validatedData = validateAndSanitize(signupSchema, {
       name: userData.name,
@@ -165,12 +170,16 @@ export const authService = {
     }
 
     try {
-      // Register user - API returns { message }
-      const registerResponse = await apiClient.post<SignupResponse>(API_ENDPOINTS.AUTH.SIGNUP, {
+      // Register user - API returns { success, message, timestamp }
+      const registerResponse = await apiClient.post<RegisterResponse>(API_ENDPOINTS.AUTH.REGISTER, {
         name: validatedData.name,
         email: validatedData.email,
         password: validatedData.password,
       }, false);
+      
+      if (!registerResponse.success) {
+        throw new Error(registerResponse.message || 'Registration failed');
+      }
       
       console.log('Registration successful:', registerResponse.message);
       
@@ -219,13 +228,14 @@ export const authService = {
       };
     }
 
-    const response = await apiClient.get<UserProfileResponse>(API_ENDPOINTS.AUTH.ME);
+    const response = await apiClient.get<ProfileResponse>(API_ENDPOINTS.AUTH.PROFILE);
     
+    // For now, create a basic user object since the profile endpoint only returns email
     return {
-      id: response.id.toString(),
+      id: Math.random().toString(36), // Generate a temp ID
       email: response.email,
-      name: response.name,
-      role: mapRole(response.role),
+      name: response.email.split('@')[0], // Use email prefix as name temporarily
+      role: 'vendor', // Default role
     };
   },
 

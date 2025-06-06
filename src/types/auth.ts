@@ -4,23 +4,50 @@ export interface LoginRequest {
   password: string;
 }
 
-export interface SignupRequest {
+export interface RegisterRequest {
+  name: string;
   email: string;
   password: string;
-  name: string;
 }
 
-export interface SigninResponse {
+export interface LoginResponse {
   token: string;
-  refreshToken: string;
+  success: boolean;
+  timestamp: string;
+}
+
+export interface RegisterResponse {
+  success: boolean;
+  message: string;
+  timestamp: string;
+}
+
+export interface ProfileResponse {
+  email: string;
+  message: string;
+  timestamp: string;
+}
+
+export interface ProfileUpdateRequest {
+  id: number;
+  name: string;
+  email: string;
+  password?: string;
   role: string;
 }
 
-export interface SignupResponse {
+export interface ProfileUpdateResponse {
   message: string;
+  user: {
+    id: number;
+    name: string;
+    email: string;
+    role: string;
+  };
+  timestamp: string;
 }
 
-export interface UserProfileResponse {
+export interface UsersListResponse {
   id: number;
   name: string;
   email: string;

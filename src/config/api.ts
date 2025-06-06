@@ -5,12 +5,13 @@ export const API_CONFIG = {
 };
 
 export const API_ENDPOINTS = {
-  // Auth endpoints
+  // Auth endpoints - updated to match actual API
   AUTH: {
-    SIGNUP: '/auth/signup',
-    SIGNIN: '/auth/signin',
+    REGISTER: '/auth/register',
+    LOGIN: '/auth/login',
     LOGOUT: '/auth/logout',
-    ME: '/auth/me',
+    PROFILE: '/auth/profile',
+    USERS: '/auth/users',
     REFRESH: '/auth/refresh',
     FORGOT_PASSWORD: '/auth/forgot-password',
     RESET_PASSWORD: '/auth/reset-password',
