@@ -77,7 +77,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const register = async (userData: Omit<User, 'id'> & { password: string }): Promise<boolean> => {
     try {
       const newUser = await authService.signup({
-        username: userData.name,
+        name: userData.name,
         email: userData.email,
         password: userData.password,
       });
